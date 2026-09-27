@@ -21,9 +21,62 @@ router.post('/', async (req: Request, res: Response) => {
 // GET /api/incidents
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const result = await query('SELECT * FROM incidents ORDER BY created_at DESC LIMIT 50');
-    res.json(result.rows);
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const search = req.query.search as string || '';
+    const status = req.query.status as string || '';
+    const risk = req.query.risk as string || '';
+    const offset = (page - 1) * limit;
+
+    const baseCTE = `
+      WITH RankedIncidents AS (
+        SELECT *, 
+          CASE WHEN reported_amount > 100000 THEN 'Critical'
+               WHEN reported_amount > 50000 THEN 'High'
+               WHEN reported_amount > 10000 THEN 'Medium'
+               ELSE 'Low' END as risk_level
+        FROM incidents
+      )
+    `;
+
+    let queryStr = `${baseCTE} SELECT * FROM RankedIncidents WHERE 1=1`;
+    let countQueryStr = `${baseCTE} SELECT COUNT(*) FROM RankedIncidents WHERE 1=1`;
+    const params: any[] = [];
+
+    if (search) {
+      params.push(`%${search}%`);
+      queryStr += ` AND (case_id ILIKE $${params.length} OR user_id ILIKE $${params.length} OR incident_type ILIKE $${params.length})`;
+      countQueryStr += ` AND (case_id ILIKE $${params.length} OR user_id ILIKE $${params.length} OR incident_type ILIKE $${params.length})`;
+    }
+    
+    if (status && status !== 'All') {
+      params.push(status);
+      queryStr += ` AND status ILIKE $${params.length}`;
+      countQueryStr += ` AND status ILIKE $${params.length}`;
+    }
+    
+    if (risk && risk !== 'All') {
+      params.push(risk);
+      queryStr += ` AND risk_level ILIKE $${params.length}`;
+      countQueryStr += ` AND risk_level ILIKE $${params.length}`;
+    }
+
+    queryStr += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    
+    const [result, countResult] = await Promise.all([
+      query(queryStr, [...params, limit, offset]),
+      query(countQueryStr, params)
+    ]);
+
+    res.json({
+      cases: result.rows,
+      total: parseInt(countResult.rows[0].count),
+      page,
+      limit,
+      totalPages: Math.ceil(parseInt(countResult.rows[0].count) / limit)
+    });
   } catch (err) {
+    console.error('Database error', err);
     res.status(500).json({ error: 'Database error' });
   }
 });

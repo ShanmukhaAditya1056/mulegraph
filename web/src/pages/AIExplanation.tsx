@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Card, 
@@ -9,18 +9,46 @@ import {
   LinearProgress,
   useTheme
 } from '@mui/material';
-import { BrainCircuit, Lightbulb, Network, TrendingUp, AlertCircle, ShieldAlert } from 'lucide-react';
+import { BrainCircuit, Lightbulb, Network, TrendingUp, AlertCircle, ShieldAlert, Cpu } from 'lucide-react';
+import CytoscapeComponent from 'react-cytoscapejs';
+import { useSearchParams } from 'react-router-dom';
 
 const shapFeatures = [
-  { name: 'High Fan-in Ratio', score: 0.85, type: 'danger' },
-  { name: 'Rapid Transaction Burst', score: 0.72, type: 'danger' },
-  { name: 'Short Holding Time', score: 0.68, type: 'danger' },
-  { name: 'Multi-hop Onward Transfer', score: 0.61, type: 'danger' },
-  { name: 'Account Age', score: 0.15, type: 'warning' },
+  { name: 'High Fan-in Ratio', score: 0.85, type: 'danger', desc: 'Number of unique depositors compared to withdrawal destinations.' },
+  { name: 'Rapid Transaction Burst', score: 0.72, type: 'danger', desc: 'High volume of transactions occurring in a very short time window.' },
+  { name: 'Short Holding Time', score: 0.68, type: 'danger', desc: 'Average time funds sit in the account before being forwarded.' },
+  { name: 'Multi-hop Onward Transfer', score: 0.61, type: 'danger', desc: 'Funds trace directly to known cash-out accounts within 2 hops.' },
+  { name: 'Account Age', score: 0.15, type: 'warning', desc: 'The account was created very recently.' },
+];
+
+const cyStylesheet = [
+  { selector: 'node', style: { 'label': 'data(label)', 'background-color': '#94A3B8', 'color': '#0F172A', 'font-size': '10px', 'text-valign': 'bottom', 'text-margin-y': 4 } },
+  { selector: 'node[group="target"]', style: { 'background-color': '#F04438', 'width': 30, 'height': 30, 'border-width': 2, 'border-color': '#FCA5A5' } },
+  { selector: 'node[group="suspicious"]', style: { 'background-color': '#F59E0B' } },
+  { selector: 'node[group="normal"]', style: { 'background-color': '#10B981' } },
+  { selector: 'edge', style: { 'width': 1.5, 'line-color': '#E2E8F0', 'target-arrow-color': '#E2E8F0', 'target-arrow-shape': 'triangle', 'curve-style': 'bezier', 'opacity': 0.8 } },
+  { selector: 'edge[type="high_risk"]', style: { 'line-color': '#FCA5A5', 'target-arrow-color': '#FCA5A5', 'line-style': 'dashed', 'width': 2 } }
 ];
 
 const AIExplanation: React.FC = () => {
   const theme = useTheme();
+  const [searchParams] = useSearchParams();
+  const accountId = searchParams.get('account') || 'mule01@upi';
+
+  // Dummy subgraph for explanation
+  const subGraphElements = [
+    { data: { id: 'target', label: accountId, group: 'target' } },
+    { data: { id: 'v1', label: 'Victim 1', group: 'normal' } },
+    { data: { id: 'v2', label: 'Victim 2', group: 'normal' } },
+    { data: { id: 'v3', label: 'Victim 3', group: 'normal' } },
+    { data: { id: 'c1', label: 'Cash-out 1', group: 'suspicious' } },
+    { data: { id: 'c2', label: 'Cash-out 2', group: 'suspicious' } },
+    { data: { source: 'v1', target: 'target' } },
+    { data: { source: 'v2', target: 'target' } },
+    { data: { source: 'v3', target: 'target' } },
+    { data: { source: 'target', target: 'c1', type: 'high_risk' } },
+    { data: { source: 'target', target: 'c2', type: 'high_risk' } }
+  ];
 
   return (
     <Box>
@@ -30,7 +58,7 @@ const AIExplanation: React.FC = () => {
             <BrainCircuit color={theme.palette.primary.main} /> AI Risk Explanation
           </Typography>
           <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mt: 0.5 }}>
-            Transparent model reasoning for Account: <Typography component="span" sx={{ fontWeight: 700, color: '#0B1726' }}>mule01@upi</Typography>
+            Transparent model reasoning for Account: <Typography component="span" sx={{ fontWeight: 700, color: '#0B1726' }}>{accountId}</Typography>
           </Typography>
         </Box>
         <Chip 
@@ -57,7 +85,7 @@ const AIExplanation: React.FC = () => {
               </Box>
               
               <Typography variant="body2" sx={{ mb: 4, color: '#475569', lineHeight: 1.6 }}>
-                The transaction-level model identified this account as high risk primarily due to its temporal transaction patterns. The combination of high rapid deposits followed by immediate onward transfers is highly indicative of layering behavior.
+                Our <strong>XGBoost Model</strong> processes individual transaction history and temporal patterns. It flagged <strong style={{color: '#0B1726'}}>{accountId}</strong> as High Risk because it perfectly matches the signature of a layering mule: quickly collecting funds from multiple sources and instantly discharging them.
               </Typography>
 
               <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 3, color: '#0B1726', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -66,14 +94,17 @@ const AIExplanation: React.FC = () => {
 
               {shapFeatures.map((feature, idx) => (
                 <Box key={idx} sx={{ mb: 3 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155' }}>
-                      + {feature.name}
+                      {feature.name}
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 700, color: feature.type === 'danger' ? theme.palette.error.main : theme.palette.warning.main }}>
                       +{feature.score.toFixed(2)}
                     </Typography>
                   </Box>
+                  <Typography variant="caption" sx={{ color: '#64748B', display: 'block', mb: 1 }}>
+                    {feature.desc}
+                  </Typography>
                   <LinearProgress 
                     variant="determinate" 
                     value={feature.score * 100} 
@@ -116,7 +147,7 @@ const AIExplanation: React.FC = () => {
               </Box>
 
               <Typography variant="body2" sx={{ mb: 4, color: '#475569', lineHeight: 1.6 }}>
-                The temporal Graph Neural Network flagged this node based on structural relationships. The account acts as a critical bridge (bottleneck node) between 14 victim accounts and a known high-risk cash-out cluster.
+                Our <strong>GraphSAGE Neural Network</strong> analyzes structural relationships. It flagged <strong style={{color: '#0B1726'}}>{accountId}</strong> because it acts as a critical structural bridge (a bottleneck node) between normal victim accounts and a highly suspicious known cash-out cluster.
               </Typography>
 
               {/* Subgraph visualization area */}
@@ -124,22 +155,41 @@ const AIExplanation: React.FC = () => {
                 flexGrow: 1, 
                 bgcolor: '#F8FAFC', 
                 borderRadius: 2, 
-                border: '1px dashed #CBD5E1',
+                border: '1px solid #E2E8F0',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                minHeight: '280px',
-                p: 3,
-                mb: 4
+                position: 'relative',
+                minHeight: '320px',
+                mb: 4,
+                overflow: 'hidden'
               }}>
-                <Network size={48} color="#94A3B8" style={{ marginBottom: 16, opacity: 0.5 }} />
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#475569', mb: 1 }}>
-                  Supporting Subgraph Extraction
-                </Typography>
-                <Typography variant="body2" align="center" sx={{ color: '#94A3B8', maxWidth: 300 }}>
-                  The structural features most responsible for the GraphSAGE anomaly score are isolated here. (Graph rendering engine placeholder)
-                </Typography>
+                <Box sx={{ p: 2, borderBottom: '1px solid #E2E8F0', bgcolor: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#0B1726', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Cpu size={16} color={theme.palette.primary.main} /> Supporting Subgraph Extraction
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ flexGrow: 1, position: 'relative' }}>
+                  <CytoscapeComponent 
+                    elements={subGraphElements} 
+                    stylesheet={cyStylesheet}
+                    style={{ width: '100%', height: '100%' }}
+                    layout={{ name: 'breadthfirst', directed: true, padding: 30 }}
+                    cy={(cy) => {
+                      cy.on('tap', 'node', (evt) => { /* disable interact for static view */ });
+                      cy.userPanningEnabled(false);
+                      cy.userZoomingEnabled(false);
+                      cy.boxSelectionEnabled(false);
+                    }}
+                  />
+                  
+                  <Box sx={{ position: 'absolute', bottom: 12, left: 12, right: 12, p: 1.5, bgcolor: 'rgba(255,255,255,0.9)', borderRadius: 1, border: '1px solid #E2E8F0', backdropFilter: 'blur(4px)' }}>
+                     <Typography variant="caption" sx={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 1 }}>
+                       <AlertCircle size={14} color="#FCA5A5" />
+                       Notice how funds funnel into the target node (red) and immediately split to known suspicious clusters (orange).
+                     </Typography>
+                  </Box>
+                </Box>
               </Box>
 
               <Box sx={{ display: 'flex', gap: 2 }}>

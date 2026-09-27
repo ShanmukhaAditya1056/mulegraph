@@ -1,13 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
-import * as admin from 'firebase-admin';
+import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
 // Initialize Firebase Admin (requires serviceAccountKey.json path in .env)
-if (!admin.apps.length) {
+if (!getApps().length) {
   try {
     const serviceAccountPath = process.env.FIREBASE_CREDENTIALS_PATH;
     if (serviceAccountPath) {
-      admin.initializeApp({
-        credential: admin.credential.cert(require('../../' + serviceAccountPath)),
+      initializeApp({
+        credential: cert(require('../../' + serviceAccountPath)),
         projectId: process.env.FIREBASE_PROJECT_ID,
       });
       console.log('Firebase Admin Initialized successfully.');
@@ -28,7 +29,7 @@ export const verifyToken = async (req: Request, res: Response, next: NextFunctio
   const token = authHeader.split('Bearer ')[1];
   
   try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    const decodedToken = await getAuth().verifyIdToken(token);
     // Attach user payload to request
     (req as any).user = decodedToken;
     next();

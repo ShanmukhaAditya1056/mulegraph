@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Grid, 
@@ -11,18 +11,125 @@ import {
   Divider,
   Stack,
   useTheme,
-  InputAdornment
+  InputAdornment,
+  IconButton
 } from '@mui/material';
-import { Shield, Network, BrainCircuit, Mail, Lock } from 'lucide-react';
+import { Shield, Network, BrainCircuit, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  sendEmailVerification,
+  updateProfile,
+  sendPasswordResetEmail,
+  signInWithPopup,
+  GoogleAuthProvider,
+  OAuthProvider
+} from 'firebase/auth';
+import { auth } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
 
 const Login: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const { user, isVerified } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const getFriendlyError = (errCode: string, defaultMsg: string) => {
+    if (errCode === 'auth/invalid-credential' || errCode === 'auth/wrong-password' || errCode === 'auth/user-not-found') {
+      return "Email or password is wrong.";
+    }
+    if (errCode === 'auth/email-already-in-use') {
+      return "This email is already registered. Please sign in.";
+    }
+    if (errCode === 'auth/weak-password') {
+      return "Password should be at least 6 characters.";
+    }
+    return defaultMsg;
+  };
+
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/dashboard');
+    setError('');
+    setMessage('');
+    setLoading(true);
+    
+    try {
+      if (isSignUp) {
+        if (!firstName || !lastName) {
+          throw new Error("First name and last name are required.");
+        }
+        if (password !== confirmPassword) {
+          throw new Error("Passwords do not match.");
+        }
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(userCredential.user, {
+          displayName: `${firstName} ${lastName}`
+        });
+        await sendEmailVerification(userCredential.user);
+        navigate('/verify-email', { replace: true });
+      } else {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        // Check hard gating immediately
+        if (userCredential.user.emailVerified) {
+          navigate('/dashboard', { replace: true });
+        } else {
+          navigate('/verify-email', { replace: true });
+        }
+      }
+    } catch (err: any) {
+      setError(getFriendlyError(err.code, err.message || `Failed to ${isSignUp ? 'create account' : 'sign in'}.`));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError("Please enter your email address first to reset password.");
+      return;
+    }
+    try {
+      setError('');
+      setLoading(true);
+      await sendPasswordResetEmail(auth, email);
+      setMessage("Password reset email sent! Check your inbox.");
+    } catch (err: any) {
+      setError(getFriendlyError(err.code, err.message || "Failed to send reset email."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOAuth = async (providerName: 'google' | 'microsoft') => {
+    try {
+      setError('');
+      setLoading(true);
+      const provider = providerName === 'google' 
+        ? new GoogleAuthProvider() 
+        : new OAuthProvider('microsoft.com');
+      
+      const userCredential = await signInWithPopup(auth, provider);
+      
+      if (userCredential.user.emailVerified || providerName === 'google') {
+        navigate('/dashboard', { replace: true });
+      } else {
+        navigate('/verify-email', { replace: true });
+      }
+    } catch (err: any) {
+      setError(err.message || `Failed to sign in with ${providerName}. Make sure it is enabled in Firebase Console.`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -178,20 +285,51 @@ const Login: React.FC = () => {
         <Box sx={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 480 }}>
           <Box sx={{ mb: 5, textAlign: 'center' }}>
             <Typography variant="h4" sx={{ fontWeight: 800, mb: 1.5, color: '#0B1726' }}>
-              Welcome Back
+              {isSignUp ? 'Create Account' : 'Welcome Back'}
             </Typography>
             <Typography variant="body1" sx={{ color: '#718096' }}>
-              Sign in to your account to continue
+              {isSignUp ? 'Sign up to get started' : 'Sign in to your account to continue'}
             </Typography>
           </Box>
 
           <form onSubmit={handleSignIn}>
+            {error && <Typography color="error" variant="body2" sx={{ mb: 2, bgcolor: 'rgba(224, 82, 82, 0.1)', p: 1.5, borderRadius: 1 }}>{error}</Typography>}
+            {message && <Typography variant="body2" sx={{ mb: 2, bgcolor: 'rgba(7, 154, 154, 0.1)', color: theme.palette.primary.main, p: 1.5, borderRadius: 1 }}>{message}</Typography>}
+            
+            {isSignUp && (
+              <>
+                <Typography variant="subtitle2" sx={{ mb: 1, color: '#334155' }}>First Name</Typography>
+                <TextField
+                  fullWidth
+                  variant="outlined"
+                  placeholder="John"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                  sx={{ mb: 3, '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#F8FAFC' } }}
+                />
+                
+                <Typography variant="subtitle2" sx={{ mb: 1, color: '#334155' }}>Last Name</Typography>
+                <TextField
+                  fullWidth
+                  variant="outlined"
+                  placeholder="Doe"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
+                  sx={{ mb: 3, '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#F8FAFC' } }}
+                />
+              </>
+            )}
+
             <Typography variant="subtitle2" sx={{ mb: 1, color: '#334155' }}>Email Address</Typography>
             <TextField
               fullWidth
               variant="outlined"
               placeholder="name@example.com"
-              defaultValue="admin@mulegraph.ai"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
               sx={{ mb: 3, '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#F8FAFC' } }}
               slotProps={{
                 input: {
@@ -207,10 +345,12 @@ const Login: React.FC = () => {
             <Typography variant="subtitle2" sx={{ mb: 1, color: '#334155' }}>Password</Typography>
             <TextField
               fullWidth
-              type="password"
+              type={showPassword ? "text" : "password"}
               variant="outlined"
               placeholder="••••••••"
-              defaultValue="password123"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
               sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#F8FAFC' } }}
               slotProps={{
                 input: {
@@ -219,18 +359,66 @@ const Login: React.FC = () => {
                       <Lock size={18} color="#94A3B8" />
                     </InputAdornment>
                   ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
+                        {showPassword ? <EyeOff size={18} color="#94A3B8" /> : <Eye size={18} color="#94A3B8" />}
+                      </IconButton>
+                    </InputAdornment>
+                  )
                 }
               }}
             />
+
+            {isSignUp && (
+              <>
+                <Typography variant="subtitle2" sx={{ mt: 3, mb: 1, color: '#334155' }}>Confirm Password</Typography>
+                <TextField
+                  fullWidth
+                  type={showPassword ? "text" : "password"}
+                  variant="outlined"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#F8FAFC' } }}
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Lock size={18} color="#94A3B8" />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
+                            {showPassword ? <EyeOff size={18} color="#94A3B8" /> : <Eye size={18} color="#94A3B8" />}
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }
+                  }}
+                />
+              </>
+            )}
             
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1, mb: 4 }}>
               <FormControlLabel
                 control={<Checkbox defaultChecked sx={{ color: '#CBD5E1', '&.Mui-checked': { color: theme.palette.primary.main } }} />}
                 label={<Typography variant="body2" sx={{ color: '#475569', fontWeight: 500 }}>Keep me signed in</Typography>}
               />
-              <Link href="#" variant="body2" underline="hover" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>
-                Forgot Password?
-              </Link>
+              {!isSignUp && (
+                <Link 
+                  component="button"
+                  type="button"
+                  onClick={handleForgotPassword}
+                  variant="body2" 
+                  underline="hover" 
+                  sx={{ fontWeight: 600, color: theme.palette.primary.main }}
+                >
+                  Forgot Password?
+                </Link>
+              )}
             </Box>
 
             <Button
@@ -238,20 +426,21 @@ const Login: React.FC = () => {
               fullWidth
               variant="contained"
               size="large"
+              disabled={loading}
               sx={{ 
                 py: 1.6, 
                 mb: 4, 
                 fontSize: '1rem',
                 borderRadius: 2,
-                background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, #0BABA8 100%)`,
-                boxShadow: '0 8px 20px -4px rgba(7, 154, 154, 0.4)',
+                background: loading ? '#CBD5E1' : `linear-gradient(90deg, ${theme.palette.primary.main} 0%, #0BABA8 100%)`,
+                boxShadow: loading ? 'none' : '0 8px 20px -4px rgba(7, 154, 154, 0.4)',
                 '&:hover': {
-                  background: `linear-gradient(90deg, #068A8A 0%, ${theme.palette.primary.main} 100%)`,
-                  boxShadow: '0 8px 20px -4px rgba(7, 154, 154, 0.6)',
+                  background: loading ? '#CBD5E1' : `linear-gradient(90deg, #068A8A 0%, ${theme.palette.primary.main} 100%)`,
+                  boxShadow: loading ? 'none' : '0 8px 20px -4px rgba(7, 154, 154, 0.6)',
                 }
               }}
             >
-              Sign In
+              {loading ? (isSignUp ? 'Creating Account...' : 'Signing In...') : (isSignUp ? 'Create Account' : 'Sign In')}
             </Button>
 
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
@@ -263,12 +452,14 @@ const Login: React.FC = () => {
             </Box>
 
             <Grid container spacing={2} sx={{ mb: 4 }}>
-              <Grid item xs={6}>
+              <Grid item xs={12}>
                 <Button 
                   fullWidth 
-                  variant="outlined" 
+                  variant="outlined"
+                  onClick={() => handleOAuth('google')}
+                  disabled={loading}
                   sx={{ 
-                    py: 1,
+                    py: 1.2,
                     color: '#334155', 
                     borderColor: '#E2E8F0',
                     borderRadius: 2,
@@ -277,34 +468,22 @@ const Login: React.FC = () => {
                     '&:hover': { bgcolor: '#F8FAFC', borderColor: '#CBD5E1' }
                   }}
                 >
-                  <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" style={{ width: 18, height: 18, marginRight: 8 }} />
-                  Google
-                </Button>
-              </Grid>
-              <Grid item xs={6}>
-                <Button 
-                  fullWidth 
-                  variant="outlined" 
-                  sx={{ 
-                    py: 1,
-                    color: '#334155', 
-                    borderColor: '#E2E8F0',
-                    borderRadius: 2,
-                    fontWeight: 600,
-                    bgcolor: '#FFFFFF',
-                    '&:hover': { bgcolor: '#F8FAFC', borderColor: '#CBD5E1' }
-                  }}
-                >
-                  <img src="https://www.svgrepo.com/show/452062/microsoft.svg" alt="Microsoft" style={{ width: 18, height: 18, marginRight: 8 }} />
-                  Microsoft
+                  <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" style={{ width: 20, height: 20, marginRight: 10 }} />
+                  Continue with Google
                 </Button>
               </Grid>
             </Grid>
 
             <Typography variant="body1" align="center" sx={{ color: '#475569' }}>
-              Don't have an account?{' '}
-              <Link href="#" underline="hover" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
-                Create an Account
+              {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+              <Link 
+                component="button" 
+                type="button"
+                onClick={() => setIsSignUp(!isSignUp)} 
+                underline="hover" 
+                sx={{ fontWeight: 700, color: theme.palette.primary.main, verticalAlign: 'baseline' }}
+              >
+                {isSignUp ? 'Sign In' : 'Create an Account'}
               </Link>
             </Typography>
           </form>

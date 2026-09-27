@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Box, 
@@ -32,8 +32,12 @@ import {
   Clock,
   BrainCircuit,
   Briefcase,
-  ShieldCheck
+  ShieldCheck,
+  LogOut
 } from 'lucide-react';
+import { signOut } from 'firebase/auth';
+import { auth } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
 
 const drawerWidth = 260;
 
@@ -56,6 +60,12 @@ const Layout: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate('/login', { replace: true });
+  };
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: theme.palette.background.default }}>
@@ -115,7 +125,7 @@ const Layout: React.FC = () => {
 
         <Box sx={{ p: 2 }}>
           {menuItems.filter(item => item.bottom).map((item) => (
-            <ListItem key={item.text} disablePadding>
+            <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
                 selected={location.pathname === item.path}
                 onClick={() => navigate(item.path)}
@@ -128,6 +138,18 @@ const Layout: React.FC = () => {
               </ListItemButton>
             </ListItem>
           ))}
+          <Divider sx={{ my: 1 }} />
+          <ListItem disablePadding>
+            <ListItemButton
+              onClick={handleLogout}
+              sx={{ borderRadius: 2, '&:hover': { bgcolor: 'rgba(224, 82, 82, 0.05)', color: theme.palette.error.main } }}
+            >
+              <ListItemIcon sx={{ minWidth: 40, color: theme.palette.error.main }}>
+                <LogOut size={20} />
+              </ListItemIcon>
+              <ListItemText primary="Log Out" primaryTypographyProps={{ fontWeight: 500, fontSize: '0.9rem', color: theme.palette.error.main }} />
+            </ListItemButton>
+          </ListItem>
         </Box>
       </Drawer>
 
@@ -135,35 +157,23 @@ const Layout: React.FC = () => {
       <Box component="main" sx={{ flexGrow: 1, p: 4 }}>
         {/* Topbar */}
         <AppBar position="static" elevation={0} sx={{ bgcolor: 'transparent', mb: 4 }}>
-          <Toolbar disableGutters sx={{ justifyContent: 'space-between' }}>
-            <Box sx={{ width: 400 }}>
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="Search UPI ID, Account or Transaction..."
-                sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#FFFFFF', borderRadius: 2 } }}
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Search size={18} color={theme.palette.text.secondary} />
-                      </InputAdornment>
-                    )
-                  }
-                }}
-              />
-            </Box>
-            
+          <Toolbar disableGutters sx={{ justifyContent: 'flex-end' }}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <IconButton sx={{ mr: 2 }}>
+              <IconButton sx={{ mx: 1 }}>
                 <Bell size={20} />
               </IconButton>
               <Box sx={{ display: 'flex', alignItems: 'center', textAlign: 'right' }}>
                 <Box sx={{ mr: 1.5 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#0B1726' }}>Aditya Madala</Typography>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Admin</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#0B1726' }}>
+                    {user?.displayName || 'Analyst'}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    {user?.email || 'admin'}
+                  </Typography>
                 </Box>
-                <Avatar sx={{ width: 40, height: 40, bgcolor: theme.palette.primary.main }}>AM</Avatar>
+                <Avatar sx={{ width: 40, height: 40, bgcolor: theme.palette.primary.main }}>
+                  {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'A'}
+                </Avatar>
               </Box>
             </Box>
           </Toolbar>

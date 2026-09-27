@@ -11,7 +11,7 @@ const pool = new Pool({
   port: parseInt(process.env.PG_PORT || '5432', 10),
 });
 
-pool.on('error', (err) => {
+pool.on('error', (err: any) => {
   console.error('Unexpected error on idle PostgreSQL client', err);
   process.exit(-1);
 });

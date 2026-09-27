@@ -1,126 +1,144 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Box, 
-  Card, 
-  CardContent, 
-  Typography, 
-  TextField,
-  Button,
-  Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  MenuItem,
-  Select,
-  FormControl,
-  useTheme
+  Box, Typography, Card, Table, TableBody, TableCell, TableContainer, 
+  TableHead, TableRow, TablePagination, TextField, InputAdornment, Chip, IconButton 
 } from '@mui/material';
-
-const transactions = [
-  { id: '1', txId: 'TXN001', date: '27 Sep 2026 10:30', sender: 'user123@okbsi', receiver: 'mule01@upi', amount: '₹5,000', risk: 'High', status: 'Success' },
-  { id: '2', txId: 'TXN002', date: '27 Sep 2026 09:12', sender: 'paytmuser@ibl', receiver: 'mule01@upi', amount: '₹2,000', risk: 'Medium', status: 'Success' },
-  { id: '3', txId: 'TXN003', date: '27 Sep 2026 08:45', sender: 'onlinejob@upi', receiver: 'mule01@upi', amount: '₹1,500', risk: 'High', status: 'Success' },
-  { id: '4', txId: 'TXN004', date: '26 Sep 2026 17:30', sender: 'student@okbsi', receiver: 'mule01@upi', amount: '₹800', risk: 'Low', status: 'Success' },
-  { id: '5', txId: 'TXN005', date: '26 Sep 2026 15:20', sender: 'friend@upi', receiver: 'mule01@upi', amount: '₹4,200', risk: 'Medium', status: 'Success' },
-];
+import { Search, Filter, Download, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import axios from 'axios';
 
 const Transactions: React.FC = () => {
-  const theme = useTheme();
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(0); // MUI pagination is 0-indexed
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalRows, setTotalRows] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState(''); // Debounced state
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput);
+      setPage(0); // Reset to first page on search
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const fetchTransactions = async () => {
+    setLoading(true);
+    try {
+      // API expects 1-indexed page
+      const res = await axios.get(`http://localhost:5000/api/transactions`, {
+        params: {
+          page: page + 1,
+          limit: rowsPerPage,
+          search: searchQuery
+        },
+        withCredentials: true
+      });
+      setTransactions(res.data.transactions);
+      setTotalRows(res.data.total);
+    } catch (err) {
+      console.error('Failed to fetch transactions:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [page, rowsPerPage, searchQuery]);
+
+  const handleChangePage = (event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  const getRiskChip = (risk: string) => {
+    if (risk === 'High') return <Chip label="High Risk" size="small" sx={{ bgcolor: '#FEE2E2', color: '#B91C1C', fontWeight: 600, height: 24 }} icon={<AlertTriangle size={14} />} />;
+    if (risk === 'Medium') return <Chip label="Medium Risk" size="small" sx={{ bgcolor: '#FEF3C7', color: '#D97706', fontWeight: 600, height: 24 }} icon={<Clock size={14} />} />;
+    return <Chip label="Low Risk" size="small" sx={{ bgcolor: '#D1FAE5', color: '#047857', fontWeight: 600, height: 24 }} icon={<CheckCircle size={14} />} />;
+  };
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>Transaction Explorer</Typography>
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: '#0F172A', mb: 0.5 }}>Transactions</Typography>
+          <Typography variant="body2" color="text.secondary">Monitor and filter all real-time financial flows across the network.</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <TextField
+            size="small"
+            placeholder="Search TXN ID or Accounts..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            sx={{ bgcolor: '#fff', borderRadius: 1, width: 300 }}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search size={18} />
+                  </InputAdornment>
+                )
+              }
+            }}
+          />
+          <IconButton sx={{ bgcolor: '#fff', border: '1px solid #E2E8F0', borderRadius: 1 }}><Filter size={18}/></IconButton>
+          <IconButton sx={{ bgcolor: '#fff', border: '1px solid #E2E8F0', borderRadius: 1 }}><Download size={18}/></IconButton>
+        </Box>
       </Box>
 
-      <Card sx={{ mb: 4 }}>
-        <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <TextField 
-            sx={{ flex: 2 }}
-            placeholder="Search transactions..." 
-            size="small"
-            variant="outlined"
-          />
-          <FormControl sx={{ minWidth: 150 }} size="small">
-            <Select defaultValue="7days">
-              <MenuItem value="7days">Last 7 Days</MenuItem>
-              <MenuItem value="30days">Last 30 Days</MenuItem>
-              <MenuItem value="all">All Time</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl sx={{ minWidth: 150 }} size="small">
-            <Select defaultValue="all">
-              <MenuItem value="all">All Risk</MenuItem>
-              <MenuItem value="high">High Risk</MenuItem>
-              <MenuItem value="medium">Medium Risk</MenuItem>
-              <MenuItem value="low">Low Risk</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl sx={{ minWidth: 150 }} size="small">
-            <Select defaultValue="all">
-              <MenuItem value="all">All Accounts</MenuItem>
-            </Select>
-          </FormControl>
-          <Button variant="contained" color="primary" sx={{ px: 4 }}>
-            Search
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
+      <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid #E2E8F0' }}>
         <TableContainer>
-          <Table>
-            <TableHead>
+          <Table sx={{ minWidth: 650 }} aria-label="transactions table">
+            <TableHead sx={{ bgcolor: '#F8FAFC' }}>
               <TableRow>
-                <TableCell sx={{ color: theme.palette.text.secondary }}>Txn ID</TableCell>
-                <TableCell sx={{ color: theme.palette.text.secondary }}>Date</TableCell>
-                <TableCell sx={{ color: theme.palette.text.secondary }}>Sender</TableCell>
-                <TableCell sx={{ color: theme.palette.text.secondary }}>Receiver</TableCell>
-                <TableCell sx={{ color: theme.palette.text.secondary }}>Amount</TableCell>
-                <TableCell sx={{ color: theme.palette.text.secondary }}>Risk</TableCell>
-                <TableCell sx={{ color: theme.palette.text.secondary }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#475569' }}>Transaction ID</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#475569' }}>Date & Time</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#475569' }}>Sender Account</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#475569' }}>Receiver Account</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#475569' }}>Amount (INR)</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#475569' }}>Risk Level</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {transactions.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell sx={{ fontWeight: 500, color: theme.palette.secondary.main }}>{row.txId}</TableCell>
-                  <TableCell>{row.date}</TableCell>
-                  <TableCell>{row.sender}</TableCell>
-                  <TableCell>{row.receiver}</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>{row.amount}</TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={row.risk} 
-                      size="small" 
-                      sx={{ 
-                        bgcolor: row.risk === 'High' ? 'rgba(224, 82, 82, 0.1)' : row.risk === 'Medium' ? 'rgba(217, 150, 33, 0.1)' : 'rgba(46, 155, 98, 0.1)',
-                        color: row.risk === 'High' ? '#E05252' : row.risk === 'Medium' ? '#D99621' : '#2E9B62',
-                        fontWeight: 600,
-                        borderRadius: 1
-                      }} 
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={row.status} 
-                      size="small" 
-                      sx={{ 
-                        bgcolor: 'rgba(46, 155, 98, 0.1)',
-                        color: '#2E9B62',
-                        fontWeight: 600,
-                        borderRadius: 1
-                      }} 
-                    />
-                  </TableCell>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>Loading transactions...</TableCell>
                 </TableRow>
-              ))}
+              ) : transactions.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>No transactions found for "{searchQuery}"</TableCell>
+                </TableRow>
+              ) : (
+                transactions.map((tx) => (
+                  <TableRow key={tx.transaction_id} hover>
+                    <TableCell sx={{ fontWeight: 500 }}>{tx.transaction_id}</TableCell>
+                    <TableCell>{new Date(tx.timestamp).toLocaleString()}</TableCell>
+                    <TableCell>{tx.sender_id}</TableCell>
+                    <TableCell>{tx.receiver_id}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>₹{parseFloat(tx.amount).toLocaleString()}</TableCell>
+                    <TableCell>{getRiskChip(tx.risk_level)}</TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </TableContainer>
+        <TablePagination
+          component="div"
+          count={totalRows}
+          page={page}
+          onPageChange={handleChangePage}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          rowsPerPageOptions={[10, 20, 50]}
+        />
       </Card>
     </Box>
   );

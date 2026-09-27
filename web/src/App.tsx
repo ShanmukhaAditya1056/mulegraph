@@ -13,29 +13,46 @@ import Analytics from './pages/Analytics';
 import DatasetManagement from './pages/DatasetManagement';
 import Settings from './pages/Settings';
 import Layout from './components/Layout';
+import VerifyEmail from './pages/VerifyEmail';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import GuestGuard from './components/GuestGuard';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="cases" element={<Cases />} />
-          <Route path="transactions" element={<Transactions />} />
-          <Route path="networks" element={<NetworkGraph />} />
-          <Route path="timeline" element={<TemporalTimeline />} />
-          <Route path="explanation" element={<AIExplanation />} />
-          <Route path="evidence" element={<EvidenceVerification />} />
-          <Route path="investigations" element={<AccountInvestigation />} />
-          <Route path="reports" element={<Reports />} />
-          <Route path="analytics" element={<Analytics />} />
-          <Route path="dataset" element={<DatasetManagement />} />
-          <Route path="settings" element={<Settings />} />
-        </Route>
-      </Routes>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          {/* Guest Routes */}
+          <Route element={<GuestGuard />}>
+            <Route path="/login" element={<Login />} />
+          </Route>
+          
+          {/* Email Verification - Not purely guest, but handles own state */}
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          
+          {/* Protected Routes */}
+          <Route path="/" element={<ProtectedRoute />}>
+            <Route element={<Layout />}>
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="cases" element={<Cases />} />
+              <Route path="transactions" element={<Transactions />} />
+              <Route path="networks" element={<NetworkGraph />} />
+              <Route path="timeline" element={<TemporalTimeline />} />
+              <Route path="explanation" element={<AIExplanation />} />
+              <Route path="evidence" element={<EvidenceVerification />} />
+              <Route path="investigations" element={<AccountInvestigation />} />
+              <Route path="investigations/:id" element={<AccountInvestigation />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="dataset" element={<DatasetManagement />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
+          </Route>
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 

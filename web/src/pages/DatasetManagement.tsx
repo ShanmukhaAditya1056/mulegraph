@@ -1,9 +1,29 @@
-import React from 'react';
-import { Box, Card, CardContent, Typography, Button, Divider, useTheme } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Card, CardContent, Typography, Button, Divider, useTheme, Snackbar, Alert } from '@mui/material';
 import { Database, UploadCloud, Play, StopCircle } from 'lucide-react';
+import axios from 'axios';
 
 const DatasetManagement: React.FC = () => {
   const theme = useTheme();
+  const [simulating, setSimulating] = useState(false);
+  const [toast, setToast] = useState('');
+
+  const toggleSimulation = async (start: boolean) => {
+    try {
+      if (start) {
+        await axios.post('http://localhost:5000/api/simulate/start', {}, { withCredentials: true });
+        setSimulating(true);
+        setToast('Live fraud simulation started. Check the Dashboard!');
+      } else {
+        await axios.post('http://localhost:5000/api/simulate/stop', {}, { withCredentials: true });
+        setSimulating(false);
+        setToast('Live fraud simulation stopped.');
+      }
+    } catch (err) {
+      console.error('Failed to toggle simulation', err);
+      setToast('Failed to connect to API.');
+    }
+  };
 
   return (
     <Box>
@@ -30,10 +50,10 @@ const DatasetManagement: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card sx={{ flex: 1, border: `2px solid ${theme.palette.error.main}` }}>
+        <Card sx={{ flex: 1, border: `2px solid ${simulating ? theme.palette.error.main : theme.palette.divider}` }}>
           <CardContent sx={{ p: 4 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.error.main, mb: 1 }}>
-              Live Simulation Mode
+            <Typography variant="h6" sx={{ fontWeight: 700, color: simulating ? theme.palette.error.main : 'inherit', mb: 1 }}>
+              Live Simulation Mode {simulating && '(ACTIVE)'}
             </Typography>
             <Typography variant="body2" color="textSecondary" sx={{ mb: 4, height: 40 }}>
               Inject synthetic task-scam and investment-scam flows into the transaction stream to demonstrate real-time graph updating.
@@ -42,16 +62,41 @@ const DatasetManagement: React.FC = () => {
             <Divider sx={{ mb: 4 }} />
 
             <Box sx={{ display: 'flex', gap: 2 }}>
-              <Button variant="contained" color="error" fullWidth startIcon={<Play size={18} />}>
+              <Button 
+                variant="contained" 
+                color="error" 
+                fullWidth 
+                startIcon={<Play size={18} />}
+                onClick={() => toggleSimulation(true)}
+                disabled={simulating}
+              >
                 Start Fraud Simulation
               </Button>
-              <Button variant="outlined" color="inherit" fullWidth startIcon={<StopCircle size={18} />}>
+              <Button 
+                variant="outlined" 
+                color="inherit" 
+                fullWidth 
+                startIcon={<StopCircle size={18} />}
+                onClick={() => toggleSimulation(false)}
+                disabled={!simulating}
+              >
                 Stop Stream
               </Button>
             </Box>
           </CardContent>
         </Card>
       </Box>
+
+      <Snackbar 
+        open={!!toast} 
+        autoHideDuration={4000} 
+        onClose={() => setToast('')}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setToast('')} severity={simulating ? "error" : "success"} sx={{ width: '100%', borderRadius: 2 }}>
+          {toast}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
